@@ -561,6 +561,41 @@ def test_raw_windows_path_is_rejected():
         _make_event(target_path_class=r"C:\Users\user\secret.txt")
 
 
+@pytest.mark.parametrize(
+    "path_class_value",
+    [
+        "C:/Users/x/.aws/*",
+        r"C:\Users\x\.aws\*",
+        "C:/Users/x/*.ts",
+        r"D:\repo\backend\auth\*.ts",
+    ],
+)
+def test_wildcarded_windows_path_class_is_accepted(path_class_value):
+    """A drive-prefixed *class* is what a Windows collector derives, and #700 fixed
+    the POSIX half of this. The drive branch rejected every drive-prefixed string,
+    wildcard or not, so on Windows every absolute-target file action produced a
+    class the activity bus refused."""
+    event = _make_event(target_path_class=path_class_value)
+    assert event.target_path_class == path_class_value
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "C:/Users/x/.aws/credentials",
+        r"C:\Users\x\.aws\credentials",
+        r"C:\Users\user\secret.txt",
+        "C:/notes.md",
+        "C:/a/*/still_raw",
+    ],
+)
+def test_raw_windows_path_is_still_rejected(raw):
+    """The final segment is what decides: a raw filename under a drive stays
+    rejected, including one whose parent is already wildcarded."""
+    with pytest.raises(ValidationError):
+        _make_event(target_path_class=raw)
+
+
 def test_raw_windows_path_with_forward_slashes_is_rejected():
     """A Windows drive path written with forward slashes is still a drive path.
 
@@ -620,6 +655,9 @@ def test_path_class_output_is_always_accepted():
         "a/b/c/deep_file",
         r"backend\auth\session.ts",
         "/etc/passwd",
+        r"C:\Users\x\.aws\credentials",
+        "C:/Users/x/.aws/credentials",
+        r"D:\repo\backend\auth\session.ts",
     ]
     for target in targets:
         action = SecurityObject(

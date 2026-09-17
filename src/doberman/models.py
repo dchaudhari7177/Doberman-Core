@@ -671,7 +671,12 @@ class CostEvent(BaseModel):
 _RAW_PATH_RE = _re.compile(
     r"""
     (?:
-        ^[A-Za-z]:[\\/]  # Windows drive path (C:\... or C:/...)
+        # Windows drive path (C:\... or C:/...) whose final segment has no
+        # wildcard. The wildcard test is the same one the POSIX branch makes:
+        # path_class normalizes backslashes, so "C:/Users/x/.aws/*" is a class
+        # a Windows collector really produces and must be accepted, while
+        # "C:\Users\x\.aws\credentials" is a raw filename and must not be.
+        ^[A-Za-z]:[\\/](?:.*[\\/])?[^*\\/]+$
       | /[^*/]+$          # dir/filename — final segment has no wildcard.
                           # Covers absolute POSIX paths too: an absolute path
                           # with a wildcarded final segment (e.g. "/etc/*") does
